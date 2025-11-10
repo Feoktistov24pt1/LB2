@@ -2,38 +2,8 @@
 #include <locale>
 #include <codecvt>
 #include <wctype.h>
-#include <stdexcept>
 #include "table_cipher.h"
-
 using namespace std;
-
-wstring removeSpaces(const wstring& s) {
-    wstring result;
-    for (wchar_t c : s) {
-        if (c != L' ') {
-            result += c;
-        }
-    }
-    return result;
-}
-
-wstring toUpper(const wstring& s) {
-    wstring result = s;
-    for (auto& c : result) {
-        c = towupper(c);
-    }
-    return result;
-}
-
-bool Valid(const wstring& s) {
-    wstring RusAlf = L"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
-    for (auto c : s) {
-        if (RusAlf.find(c) == wstring::npos) {
-            return false;
-        }
-    }
-    return true;
-}
 
 wstring stringToWstring(const string& str) {
     wstring_convert<codecvt_utf8<wchar_t>> converter;
@@ -48,10 +18,7 @@ string wstringToString(const wstring& wstr) {
 int main() {
     setlocale(LC_ALL, "ru_RU.UTF-8");
     string stlb;
-    string txt;
-    unsigned vbr;
-
-    cout << "Шифр табличной перестановки" << endl;
+    cout << "Шифр табличной перестановки\n";
     cout << "Введите количество столбцов: ";
     getline(cin, stlb);
 
@@ -59,68 +26,47 @@ int main() {
         int key = stoi(stlb);
         TableCipher cipher(key);
 
+        unsigned vbr;
         wstring last_encrypted;
-
         do {
             cout << "Выберите действие (Выйти=>0, Шифровать=>1, Расшифровать=>2): ";
-            if (!(cin >> vbr)) {
-                cin.clear();
-                cin.ignore(10000, '\n');
-                cout << "Неверный ввод действия. Попробуйте снова." << endl;
-                continue;
-            }
+            cin >> vbr;
             cin.ignore();
 
-            if (vbr == 0) {
-                break;
-            } else if (vbr > 2) {
-                cout << "Неверное действие" << endl;
+            if (vbr == 0) break;
+            if (vbr > 2) {
+                cout << "Неверное действие\n";
                 continue;
             }
 
-            cout << "Введите текст: ";
+            string txt;
+            cout << "Введите текст (русские буквы, можно с пробелами): ";
             getline(cin, txt);
             wstring text = stringToWstring(txt);
 
-            text = toUpper(text);
-            text = removeSpaces(text);
-
-            if (text.empty()) {
-                cout << "Текст пуст после удаления пробелов." << endl;
-                continue;
-            }
-
-            if (!Valid(text)) {
-                cout << "Используйте только русские буквы (А-Я, а-я). Пробелы будут удалены автоматически." << endl;
-                continue;
-            }
-
-            if (vbr == 1) {
-                try {
+            try {
+                if (vbr == 1) {
                     last_encrypted = cipher.encrypt(text);
                     cout << "Зашифрованный текст: " << wstringToString(last_encrypted) << endl;
-                } catch (const exception& e) {
-                    cout << "Ошибка шифрования: " << e.what() << endl;
-                }
-            } else { // vbr == 2
-                if (last_encrypted.empty()) {
-                    cout << "Сначала зашифруйте текст!" << endl;
                 } else {
-                    try {
+                    if (last_encrypted.empty()) {
+                        cout << "Сначала зашифруйте текст!\n";
+                    } else {
                         wstring decrypted = cipher.decrypt(last_encrypted);
                         cout << "Расшифрованный текст: " << wstringToString(decrypted) << endl;
-                    } catch (const exception& e) {
-                        cout << "Ошибка расшифровки: " << e.what() << endl;
                     }
                 }
+            } catch (const cipher_error& e) {
+                cerr << "Ошибка обработки текста: " << e.what() << endl;
             }
-        } while (true);
 
-    } catch (const invalid_argument& e) {
-        cerr << "Ошибка ввода: " << e.what() << endl;
+        } while (vbr != 0);
+
+    } catch (const cipher_error& e) {
+        cerr << "Ошибка инициализации шифра: " << e.what() << endl;
         return 1;
     } catch (const exception& e) {
-        cerr << "Неизвестная ошибка: " << e.what() << endl;
+        cerr << "Ошибка: " << e.what() << endl;
         return 1;
     }
 

@@ -1,39 +1,59 @@
 #include "table_cipher.h"
-#include <algorithm>
 #include <vector>
-#include <stdexcept>
+#include <cctype>
+#include <cwctype>
+#include <algorithm>
+using namespace std;
 
-TableCipher::TableCipher(int key)
-{
-    if (key <= 0) {
-        throw std::invalid_argument("Ключ должен быть положительным целым числом (> 0)");
-    }
+TableCipher::TableCipher(int key) {
+    if (key <= 0)
+        throw cipher_error("Количество столбцов должно быть > 0");
     columns = key;
 }
 
-std::wstring TableCipher::encrypt(const std::wstring& plain)
-{
-    if (plain.empty()) {
-        throw std::invalid_argument("Текст для шифрования не может быть пустым");
+wstring TableCipher::getValidText(const wstring& s) {
+    if (s.empty())
+        throw cipher_error("Текст пуст");
+    wstring rus = L"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+    wstring result;
+    for (wchar_t c : s) {
+        if (c != L' ') {
+            wchar_t uc = towupper(c);
+            if (rus.find(uc) == wstring::npos)
+                throw cipher_error("Текст содержит недопустимые символы");
+            result += uc;
+        }
     }
+    if (result.empty())
+        throw cipher_error("Текст не содержит русских букв");
+    return result;
+}
 
-    int n = static_cast<int>(plain.length());
+wstring TableCipher::getValidCipherText(const wstring& s) {
+    if (s.empty())
+        throw cipher_error("Шифротекст пуст");
+    wstring rus = L"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+    for (wchar_t c : s) {
+        if (rus.find(c) == wstring::npos)
+            throw cipher_error("Шифротекст содержит недопустимые символы");
+    }
+    return s;
+}
+
+wstring TableCipher::encrypt(const wstring& plain) {
+    wstring valid = getValidText(plain);
+    int n = static_cast<int>(valid.length());
     int rows = (n + columns - 1) / columns;
-
-    std::vector<std::vector<wchar_t>> grid(rows, std::vector<wchar_t>(columns, L' '));
+    vector<vector<wchar_t>> grid(rows, vector<wchar_t>(columns, L' '));
     int pos = 0;
-
     for (int r = 0; r < rows; ++r) {
         for (int c = 0; c < columns; ++c) {
             if (pos < n) {
-                grid[r][c] = plain[pos++];
+                grid[r][c] = valid[pos++];
             }
         }
     }
-
-    std::wstring out;
-    out.reserve(n);
-
+    wstring out;
     for (int c = columns - 1; c >= 0; --c) {
         for (int r = 0; r < rows; ++r) {
             if (grid[r][c] != L' ') {
@@ -44,36 +64,26 @@ std::wstring TableCipher::encrypt(const std::wstring& plain)
     return out;
 }
 
-std::wstring TableCipher::decrypt(const std::wstring& cipher)
-{
-    if (cipher.empty()) {
-        throw std::invalid_argument("Шифротекст не может быть пустым");
-    }
-
-    int n = static_cast<int>(cipher.length());
+wstring TableCipher::decrypt(const wstring& cipher) {
+    wstring valid = getValidCipherText(cipher);
+    int n = static_cast<int>(valid.length());
     int rows = (n + columns - 1) / columns;
-    int fullCols = (n % columns == 0) ? columns : (n % columns);
+    int fullCols = n % columns;
+    if (fullCols == 0) fullCols = columns;
 
-    std::vector<std::vector<wchar_t>> grid(rows, std::vector<wchar_t>(columns, L' '));
+    vector<vector<wchar_t>> grid(rows, vector<wchar_t>(columns, L' '));
     int pos = 0;
-
     for (int c = columns - 1; c >= 0; --c) {
-        int h = (c < fullCols) ? rows : (rows - 1);
+        int h = rows;
+        if (c >= fullCols) h = rows - 1;
         for (int r = 0; r < h; ++r) {
-            if (pos >= n) {
-                throw std::runtime_error("Некорректная длина текста");
+            if (pos < n) {
+                grid[r][c] = valid[pos++];
             }
-            grid[r][c] = cipher[pos++];
         }
     }
 
-    if (pos != n) {
-        throw std::runtime_error("Ошибка при расшифровке (избыточные символы)");
-    }
-
-    std::wstring out;
-    out.reserve(n);
-
+    wstring out;
     for (int r = 0; r < rows; ++r) {
         for (int c = 0; c < columns; ++c) {
             if (grid[r][c] != L' ') {
